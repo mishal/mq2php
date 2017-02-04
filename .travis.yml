@@ -1,2 +1,5 @@
 language: java
 sudo: false
+script:
+  - mvn test
+  - mvn clean compile assembly:single
