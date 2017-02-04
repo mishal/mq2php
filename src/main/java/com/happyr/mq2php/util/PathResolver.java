@@ -4,8 +4,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * com.happyr.java.deferredEventWorker
- *
  * @author Tobias Nyholm
  */
 public class PathResolver {
@@ -13,7 +11,6 @@ public class PathResolver {
     /**
      * Make sure that the path does not include any ..
      *
-     * @param path
      * @return String
      */
     public static String resolve(String path) {

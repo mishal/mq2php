@@ -1,8 +1,11 @@
 package com.happyr.mq2php.executor;
 
-import com.happyr.mq2php.message.Header;
+import com.happyr.mq2php.Application;
+import com.happyr.mq2php.exception.MessageExecutionFailedException;
 import com.happyr.mq2php.message.Message;
 import com.happyr.mq2php.util.Marshaller;
+import com.happyr.mq2php.util.Serializer;
+import java.util.logging.Level;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -14,30 +17,35 @@ import org.apache.http.message.BasicNameValuePair;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import org.pmw.tinylog.Logger;
 
 /**
  * Execute a message by HTTP POST request.
  *
  * @author Tobias Nyholm
  */
-public class HttpExecutor implements ExecutorInterface {
-    public String execute(Message message) {
-        Header headerUrl = message.getHeaderByName("http_url");
-        if (headerUrl == null) {
-            return "Message has no URL. Can't process this message with HttpExecutor";
-        }
+public class HttpExecutor implements IExecutor {
 
+    protected String httpUrl;
+
+    public HttpExecutor(String httpUrl) {
+        this.httpUrl = httpUrl;
+    }
+
+    public void execute(Message message) {
+        Logger.debug("Sending post data to {}, ", this.httpUrl);
         try {
-            return sendHttpPost(headerUrl, new String(Marshaller.toBytes(message)));
+            sendHttpPost(this.httpUrl, Serializer.serializeBase64(Marshaller.toBytes(message)));
         } catch (IOException e) {
-            return e.getMessage();
+            Logger.error(e.getMessage());
+            throw new MessageExecutionFailedException(e.getMessage(), false);
         }
     }
 
-    private String sendHttpPost(Header headerUrl, String body) throws IOException {
+    private void sendHttpPost(String httpUrl, String body) throws IOException {
         CloseableHttpClient httpclient = HttpClients.createDefault();
         try {
-            HttpPost httpPost = new HttpPost(headerUrl.getValue());
+            HttpPost httpPost = new HttpPost(httpUrl);
 
             List<NameValuePair> nvps = new ArrayList<NameValuePair>();
             nvps.add(new BasicNameValuePair("DEFERRED_DATA", body));
@@ -48,7 +56,8 @@ public class HttpExecutor implements ExecutorInterface {
             try {
                 int httpStatus = response.getStatusLine().getStatusCode();
                 if (httpStatus != 200) {
-                    return response.toString();
+                    // FIXME: decide if requeue based on the code status something like: https://github.com/ricbra/rabbitmq-cli-consumer#strict-exit-code-processing
+                    throw new MessageExecutionFailedException("The http response returned non 200 status code: " + httpStatus, false);
                 }
             } finally {
                 response.close();
@@ -56,7 +65,5 @@ public class HttpExecutor implements ExecutorInterface {
         } finally {
             httpclient.close();
         }
-
-        return null;
     }
 }

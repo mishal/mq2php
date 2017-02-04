@@ -5,12 +5,12 @@ import com.happyr.mq2php.message.Message;
 /**
  * @author Tobias Nyholm
  */
-public interface ExecutorInterface {
+public interface IExecutor {
+
     /**
      * Execute the message payload.
      *
-     * @param message
-     * @return null|String with errors. Null if everything was okey
+     * @throws com.happyr.mq2php.exception.MessageExecutionFailedException
      */
-    String execute(Message message);
+    void execute(Message message);
 }

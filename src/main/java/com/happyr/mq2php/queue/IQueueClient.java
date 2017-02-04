@@ -5,9 +5,10 @@ package com.happyr.mq2php.queue;
  *
  * @author Tobias Nyholm
  */
-public interface QueueClient {
+public interface IQueueClient {
+
     /**
-     * Start receiving messages. This will make use of the message consumer.
+     * Start receiving messages.
      */
     void receive();
 }

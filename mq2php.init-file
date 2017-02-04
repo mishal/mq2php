@@ -4,12 +4,12 @@
 #
 ### BEGIN INIT INFO
 # Provides:          mq2php
-# Required-Start:    $network $local_fs $remote_fs
+# Required-Start:    $network $local_fs $remote_fs $all
 # Required-Stop:     $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: MessageQueue2PHP
-# Description:       MessageQueue2PHP
+# Short-Description: RabbitMq to Php
+# Description:       RabbitMq consumer which passes messages to php.
 ### END INIT INFO
 
 NAME="Message Queue to PHP"
@@ -21,19 +21,16 @@ SCRIPT_NAME="/etc/init.d/mq2php"
 JAVA_HOME=/usr/bin/java
 PLUGIN_PATH=/opt/mq2php
 FILE_NAME=mq2php.jar
-USER=java_user
+USER=www-data
 
-MESSAGE_QUEUE="rabbitmq"
-EXECUTOR="fastcgi" # could be "shell" or "fastcgi"
-
-
+QUEUE_NAMES="default,my_queue"
+EXECUTOR="fcgi" # could be "shell", "fcgi", or "http"
+DISPATCH_PATH="/var/www/myproject/dispatcher.php"
 PIDFILE=/var/run/mq2php.pid
-#
-# stop changing
-#
+LOG_CONFIG=/opt/mq2php/tinylog.properties
 
-#This is the command that will start the application
-COMMAND="-Dexecutor=$EXECUTOR -DmessageQueue=$MESSAGE_QUEUE -jar $PLUGIN_PATH/$FILE_NAME"
+# This is the command that will start the application
+COMMAND="-Dexecutor=$EXECUTOR -Dtinylog.configuration=$LOG_CONFIG -DdispatchPath=$DISPATCH_PATH -DqueueNames=$QUEUE_NAMES -jar $PLUGIN_PATH/$FILE_NAME"
 
 get_pid() {
   cat "$PIDFILE"

@@ -1,103 +1,92 @@
 package com.happyr.mq2php;
 
-import com.happyr.mq2php.executor.ExecutorInterface;
+import com.happyr.mq2php.executor.IExecutor;
 import com.happyr.mq2php.executor.FastCgiExecutor;
 import com.happyr.mq2php.executor.HttpExecutor;
 import com.happyr.mq2php.executor.ShellExecutor;
-import com.happyr.mq2php.queue.QueueClient;
+import com.happyr.mq2php.queue.IQueueClient;
 import com.happyr.mq2php.queue.RabbitMqClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
+import com.happyr.mq2php.util.PathResolver;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.pmw.tinylog.Logger;
 
 /**
  * @author Tobias Nyholm
  */
 public class Application {
 
-    private static final Logger logger = LoggerFactory.getLogger(Application.class);
-    private static ArrayList<Worker> workers = new ArrayList<Worker>();
-
     public static void main(String[] args) {
         int nbThreads = getNumberOfThreads();
         String[] queueNames = getQueueNames();
+        String queueHost = "localhost";
+        int queuePort = 5672;
+        String queueVhost = "/";
+        String queueUsername = "guest";
+        String queuePassword = "guest";
 
-        logger.info("Starting mq2php listening to {} queues.", queueNames.length);
+        if (System.getProperty("queueHost") != null) {
+            queueHost = System.getProperty("queueHost");
+        } else if(System.getenv("RABBIT_MQ_HOST") != null) {
+            queueHost = System.getenv("RABBIT_MQ_HOST");
+        }
 
+        if (System.getProperty("queuePort") != null) {
+            queuePort = Integer.valueOf(System.getProperty("queuePort"));
+        } else if(System.getenv("RABBIT_MQ_PORT") != null) {
+            queuePort = Integer.valueOf(System.getenv("RABBIT_MQ_PORT"));
+        }
+
+        if (System.getProperty("queueVhost") != null) {
+            queueVhost = System.getProperty("queueVhost");
+        } else if(System.getenv("RABBIT_MQ_VHOST") != null) {
+            queueVhost = System.getenv("RABBIT_MQ_VHOST");
+        }
+
+        if (System.getProperty("queueUsername") != null) {
+            queueUsername = System.getProperty("queueUsername");
+        } else if(System.getenv("RABBIT_MQ_USERNAME") != null) {
+            queueUsername = System.getenv("RABBIT_MQ_USERNAME");
+        }
+
+        if (System.getProperty("queuePassword") != null) {
+            queuePassword = System.getProperty("queuePassword");
+        } else if(System.getenv("RABBIT_MQ_PASSWORD") != null) {
+            queuePassword = System.getenv("RABBIT_MQ_PASSWORD");
+        }
+
+        Logger.info("Starting mq2php listening to " + queueNames.length + " queues.");
+
+        ExecutorService executor = Executors.newFixedThreadPool(nbThreads * queueNames.length);
         // Start all queue
         for (int i = 0; i < queueNames.length; i++) {
             for (int j = 0; j < nbThreads; j++) {
                 String name = queueNames[i];
-                startNewWorker(name);
-            }
-        }
-
-        // Start monitor their health
-        checkWorkerHealth();
-    }
-
-    /**
-     * Check the heath of each worker periodically.
-     */
-    private static void checkWorkerHealth() {
-        Worker worker;
-        String queueName;
-        while (true) {
-            for (int i = 0; i < workers.size(); i++) {
-                worker = workers.get(i);
-                if (!worker.isAlive()) {
-                    queueName = worker.getQueueName();
-                    workers.remove(worker);
-                    startNewWorker(queueName);
-                }
-            }
-
-            try {
-                // Sleep for a minute
-                Thread.sleep(60000);
-            } catch (InterruptedException e) {
+                Logger.info("Starting worker for queue '"+ name+"'");
+                executor.execute(getNewWorker(queueHost, queuePort, queueVhost, queueUsername, queuePassword, name));
             }
         }
     }
 
-    /**
-     * Start a new worker and put it to the worker queue
-     *
-     * @param name of the queue that we should listen to
-     */
-    private static void startNewWorker(String name) {
-        logger.info("Starting worker for queue '{}'", name);
-        Worker worker = new Worker(name, getQueue(name));
-        worker.start();
-        workers.add(worker);
+    private static Worker getNewWorker(String host, int port, String vhost, String username, String password, String name) {
+        return new Worker(name, getQueueClient(host, port, vhost, username, password, name));
     }
 
-    /**
-     * Get the queue names
-     *
-     * @return String[]
-     */
     private static String[] getQueueNames() {
         // This is a comma separated string
         String queueNamesArg = System.getProperty("queueNames");
         if (queueNamesArg == null) {
-            queueNamesArg = "sf_deferred_events";
+            queueNamesArg = "default";
         }
 
         return queueNamesArg.split(",");
     }
 
-    /**
-     * Get the number of threads from System properties.
-     *
-     * @return int
-     */
     private static int getNumberOfThreads() {
         String param = System.getProperty("threads");
         if (param == null) {
-            //default
-            param = "3";
+            // default
+            param = "1";
         }
 
         int threads;
@@ -109,7 +98,8 @@ public class Application {
         }
 
         if (threads < 1) {
-            throw new IllegalArgumentException("You must specify a number of threads that is greather than 0");
+            throw new IllegalArgumentException(
+                "You must specify a number of threads that is greather than 0");
         }
 
         return threads;
@@ -118,46 +108,78 @@ public class Application {
     /**
      * Get a queue client from the system properties.
      *
-     * @return QueueClient
+     * @return IQueueClient
      */
-    private static QueueClient getQueue(String queueName) {
+    private static IQueueClient getQueueClient(String host, int port, String vhost, String username,
+        String password, String queueName) {
         String param = System.getProperty("messageQueue");
         if (param == null) {
-            //default
+            // default
             param = "rabbitmq";
         }
 
         if (param.equalsIgnoreCase("rabbitmq")) {
-            return new RabbitMqClient(queueName, new MessageConsumer(getExecutor()));
+            return new RabbitMqClient(host, port, vhost, username, password, queueName, getExecutor());
         }
 
-        throw new IllegalArgumentException("Could not find QueueClient implementation named " + param);
+        throw new IllegalArgumentException(
+            "Could not find client implementation named " + param);
     }
 
     /**
      * Get a executor object from the system properties
      *
-     * @return ExecutorInterface
+     * @return IExecutor
      */
-    private static ExecutorInterface getExecutor() {
+    private static IExecutor getExecutor() {
         String param = System.getProperty("executor");
         if (param == null) {
-            //default
+            // default
             param = "shell";
         }
-
-        if (param.equalsIgnoreCase("fastcgi")) {
-            return new FastCgiExecutor();
+        String dispatchPath = null;
+        if (System.getProperty("dispatchPath") != null) {
+            dispatchPath = System.getProperty("dispatchPath");
         }
 
+        if (dispatchPath == null) {
+            throw new IllegalArgumentException("Missing dispatchPath parameter which is mandatory");
+        }
+
+        // fastcgi
+        if (param.equalsIgnoreCase("fcgi")) {
+            // get parameters
+            String fcgiHost = "localhost";
+            int fcgiPort = 9000;
+            if (System.getProperty("fcgiHost") != null) {
+                fcgiHost = System.getProperty("fcgiHost");
+            }
+            if (System.getProperty("fcgiPort") != null) {
+                fcgiPort = Integer.valueOf(System.getProperty("fcgiPort"));
+            }
+            if (System.getProperty("dispatchPath") != null) {
+                dispatchPath = System.getProperty("dispatchPath");
+            }
+
+            return new FastCgiExecutor(fcgiHost, fcgiPort, PathResolver.resolve(dispatchPath));
+        }
+
+        // shell
         if (param.equalsIgnoreCase("shell")) {
-            return new ShellExecutor();
+            String phpBin = "php";
+            if (System.getProperty("phpBin") != null) {
+                phpBin = System.getProperty("phpBin");
+            }
+            return new ShellExecutor(phpBin, PathResolver.resolve(dispatchPath));
         }
 
+        // http
         if (param.equalsIgnoreCase("http")) {
-            return new HttpExecutor();
+            return new HttpExecutor(dispatchPath);
         }
 
-        throw new IllegalArgumentException("Could not find ExecutorInterface implementation named " + param);
+        throw new IllegalArgumentException(
+            "Could not find IExecutor implementation named " + param);
     }
+
 }

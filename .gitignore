@@ -1,7 +1,6 @@
+.idea/
 out/
-DeferredEventJavaWorker.iml
-
-
+mq2php.iml
 # Maven
 target/
 pom.xml.tag

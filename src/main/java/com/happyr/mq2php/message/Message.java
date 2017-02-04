@@ -1,68 +1,74 @@
 package com.happyr.mq2php.message;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
+import com.rabbitmq.tools.json.JSONSerializable;
+import com.rabbitmq.tools.json.JSONWriter;
 
 /**
  * A representation of a message
  */
-public class Message {
+public class Message implements JSONSerializable {
 
-    private static final Logger logger = LoggerFactory.getLogger(Message.class);
-
-    private ArrayList<Header> headers;
     private String body;
+    private Headers headers;
+    private Properties properties;
+    private Boolean redelivered;
+    private String queue;
 
-    public String getHeaderValueByName(String name) {
-        Header header = getHeaderByName(name);
-
-        if (header == null) {
-            logger.error("Could not find header with name '{}'.", name);
-            return null;
-        }
-
-        return header.getValue();
-    }
-
-    public Header getHeaderByName(String name) {
-        for (Header header : headers) {
-            if (header.getKey().equals(name)) {
-                return header;
-            }
-        }
-
-        return null;
-    }
-
-    public void setHeader(String key, String value) {
-        Header header = getHeaderByName(key);
-
-        if (header != null) {
-            header.setValue(value);
-
-            return;
-        }
-
-        // Create new header
-        header = new Header(key, value);
-        headers.add(header);
-    }
-
-    public ArrayList<Header> getHeaders() {
-        return headers;
-    }
-
-    public void setHeaders(ArrayList<Header> headers) {
+    public Message(String body, Properties properties, Headers headers, Boolean isRedelivered,
+        String queueName) {
+        this.body = body;
+        this.properties = properties;
         this.headers = headers;
+        this.redelivered = isRedelivered;
+        this.queue = queueName;
     }
 
+    /**
+     * Returns the message body.
+     *
+     * @return String
+     */
     public String getBody() {
         return body;
     }
 
-    public void setBody(String body) {
-        this.body = body;
+    /**
+     * Returns the message properties
+     * @return Properties
+     */
+    public Properties getProperties() {
+        return properties;
     }
+
+    /**
+     * Returns the message headers
+     *
+     * @return Headers
+     */
+    public Headers getHeaders() {
+        return headers;
+    }
+
+    /**
+     * Is the message redelivered?
+     *
+     * @return Boolean
+     */
+    public Boolean getRedelivered() {
+        return redelivered;
+    }
+
+    /**
+     * Returns the queue name
+     *
+     * @return String
+     */
+    public String getQueue() {
+        return queue;
+    }
+
+    public void jsonSerialize(JSONWriter jsonWriter) {
+        jsonWriter.writeLimited(Message.class, this, null);
+    }
+
 }

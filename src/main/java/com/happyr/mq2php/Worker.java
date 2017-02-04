@@ -1,36 +1,22 @@
 package com.happyr.mq2php;
 
-import com.happyr.mq2php.queue.QueueClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.happyr.mq2php.queue.IQueueClient;
 
 /**
- *
- *
  * @author Tobias Nyholm
  */
-public class Worker extends Thread {
+public class Worker implements Runnable {
 
-    private static final Logger logger = LoggerFactory.getLogger(Worker.class);
-
-    private QueueClient mq;
+    private IQueueClient mq;
     private String queueName;
 
-    public Worker(String queueName, QueueClient mq) {
+    public Worker(String queueName, IQueueClient mq) {
         this.queueName = queueName;
         this.mq = mq;
     }
 
-    @Override
     public void run() {
-        while (true) {
-            try {
-                mq.receive();
-            } catch (Throwable t) {
-                logger.error(t.getMessage());
-                return;
-            }
-        }
+        mq.receive();
     }
 
     public String getQueueName() {
