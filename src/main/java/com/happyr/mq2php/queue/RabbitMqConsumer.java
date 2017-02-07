@@ -49,6 +49,8 @@ final public class RabbitMqConsumer extends DefaultConsumer {
             if (e.requeue()) {
                 Logger.debug("Requeueing the message");
                 this.getChannel().basicNack(envelope.getDeliveryTag(), false, true);
+            } else  {
+                throw e;
             }
         }
     }

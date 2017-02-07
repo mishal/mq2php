@@ -62,8 +62,13 @@ public class Application {
         for (int i = 0; i < queueNames.length; i++) {
             for (int j = 0; j < nbThreads; j++) {
                 String name = queueNames[i];
-                Logger.info("Starting worker for queue '"+ name+"'");
-                executor.execute(getNewWorker(queueHost, queuePort, queueVhost, queueUsername, queuePassword, name));
+                try {
+                    executor.execute(getNewWorker(queueHost, queuePort, queueVhost, queueUsername, queuePassword, name));
+                    Logger.info("Starting worker for queue '"+ name+"'");
+                } catch(IllegalArgumentException e) {
+                    Logger.error("Error creating the worker instance: {}", e.getMessage());
+                    throw e;
+                }
             }
         }
     }
