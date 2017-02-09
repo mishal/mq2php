@@ -5,6 +5,7 @@ import com.rabbitmq.client.*;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
+import org.pmw.tinylog.Logger;
 
 /**
  * A Rabbit MQ client
@@ -68,4 +69,13 @@ public class RabbitMqClient implements IQueueClient {
         }
     }
 
+    public void shutdown() {
+        if (this.connection.isOpen()) {
+            try {
+                this.connection.close();
+            } catch (IOException e) {
+                Logger.error(e.getMessage());
+            }
+        }
+    }
 }

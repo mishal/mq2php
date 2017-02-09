@@ -7,6 +7,7 @@ import com.happyr.mq2php.executor.ShellExecutor;
 import com.happyr.mq2php.queue.IQueueClient;
 import com.happyr.mq2php.queue.RabbitMqClient;
 import com.happyr.mq2php.util.PathResolver;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.pmw.tinylog.Logger;
@@ -15,6 +16,8 @@ import org.pmw.tinylog.Logger;
  * @author Tobias Nyholm
  */
 public class Application {
+
+    private static ArrayList<Worker> workers = new ArrayList<Worker>();
 
     public static void main(String[] args) {
         int nbThreads = getNumberOfThreads();
@@ -57,13 +60,16 @@ public class Application {
 
         Logger.info("Starting mq2php listening to " + queueNames.length + " queues.");
 
-        ExecutorService executor = Executors.newFixedThreadPool(nbThreads * queueNames.length);
+        final ExecutorService executor = Executors.newFixedThreadPool(nbThreads * queueNames.length);
         // Start all queue
         for (int i = 0; i < queueNames.length; i++) {
             for (int j = 0; j < nbThreads; j++) {
                 String name = queueNames[i];
                 try {
-                    executor.execute(getNewWorker(queueHost, queuePort, queueVhost, queueUsername, queuePassword, name));
+                    IQueueClient client = getQueueClient(queueHost, queuePort, queueVhost, queueUsername, queuePassword, name);
+                    Worker worker = new Worker(name, client);
+                    workers.add(worker);
+                    executor.execute(worker);
                     Logger.info("Starting worker for queue '"+ name+"'");
                 } catch(IllegalArgumentException e) {
                     Logger.error("Error creating the worker instance: {}", e.getMessage());
@@ -71,10 +77,21 @@ public class Application {
                 }
             }
         }
-    }
 
-    private static Worker getNewWorker(String host, int port, String vhost, String username, String password, String name) {
-        return new Worker(name, getQueueClient(host, port, vhost, username, password, name));
+        // handle kill signals
+        // see: http://stackoverflow.com/questions/2541597/how-to-gracefully-handle-the-sigkill-signal-in-java
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                Worker worker;
+                // cannot write to log in this case!
+                System.out.println("Shutting down workers, application has been terminated.");
+                for (int i = 0; i < workers.size(); i++) {
+                    worker = workers.get(i);
+                    worker.shutdown();
+                }
+            }
+        });
     }
 
     private static String[] getQueueNames() {

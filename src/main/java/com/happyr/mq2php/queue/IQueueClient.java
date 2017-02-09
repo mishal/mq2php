@@ -11,4 +11,9 @@ public interface IQueueClient {
      * Start receiving messages.
      */
     void receive();
+
+    /**
+     * Shutdown, close connection
+     */
+    void shutdown();
 }

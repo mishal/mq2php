@@ -22,4 +22,13 @@ public class Worker implements Runnable {
     public String getQueueName() {
         return queueName;
     }
+
+    public IQueueClient getMessageQueueClient() {
+        return mq;
+    }
+
+    public void shutdown() {
+        this.mq.shutdown();
+    }
+
 }
